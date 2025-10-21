@@ -1,0 +1,189 @@
+---
+title: "Demand Estimation"
+author: "L. Odette"
+format: html
+page-layout: full
+toc: true
+editor: visual
+code-fold: true
+code-line-numbers: true
+code-block-border-left: "#31BAE9"
+theme: sandstone
+fontsize: 85%
+self-contained: true
+date: 10/22/2025
+---
+
+```{r}
+#| echo: false
+#| message: false
+require(ggplot2)
+require(patchwork)
+
+source('../R/conda_init.R')
+
+theme_set(theme_bw(base_size = 18) + theme(legend.position = "top"))
+
+# https://medium.com/save-the-data/how-to-use-python-in-r-with-reticulate-and-conda-36685534f06a
+require(reticulate)
+Sys.setenv(RETICULATE_PYTHON="../envs/bin/python")
+```
+
+```{python}
+import pyblp
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+```
+
+```{r}
+#| label: read product data
+dat <- 
+  readr::read_csv("../Exercises/Data/products.csv", show_col_types = FALSE)
+```
+
+| Column | Data Type | Description |
+|----------------------------------|------------------|--------------------|
+| `market` | String | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988. |
+| `product` | String | The firm-brand pair that defines products $j$ used in these exercises. Each of 5 firms produces between 1 and 9 brands of cereal. |
+| `mushy` | Binary | A dummy product characteristic equal to one if the product gets soggy in milk. |
+| `servings_sold` | Float | Total quantity $q_{jt}$ of servings of the product sold in a market, which will be used to compute market shares. |
+| `city_population` | Float | Total population of the city, which will be used to define a market size. |
+| `price_per_serving` | Float | The product's price $p_{jt}$ used in these exercises. |
+| `price_instrument` | Float | An instrument to handle price endogeneity in these exercises. Think of it as a cost-shifter, a Hausman instrument, or any other valid IV that we discussed in class. |
+
+```{r}
+#| describe data
+dat |> summary()
+```
+
+```{r}
+#| label: create shares
+
+share_dat <- dat |> 
+  dplyr::mutate(
+    market_size = city_population * 90
+    , market_share = servings_sold / market_size
+  ) |> 
+  dplyr::group_by(market) |> 
+  dplyr::mutate(
+    inside_share_sum = sum(market_share)
+    , outside_share = 1 - inside_share_sum
+  ) |> 
+  dplyr::ungroup()
+
+share_dat |> 
+  dplyr::summarize(
+    min_s0t = min(outside_share)
+    , max_s0t = max(outside_share)
+  )
+
+```
+
+```{r}
+model_dat <- share_dat |> 
+  dplyr::mutate(
+    logit_delta = log(market_share / outside_share)
+  )
+
+lm(logit_delta ~ 1 + price_per_serving + mushy, data = model_dat) |> broom::tidy()
+```
+
+```{r}
+py_model_dat <- 
+  model_dat |> dplyr::rename(
+    market_ids = market
+    , product_ids = product
+    , shares = market_share
+    , prices = price_per_serving
+  ) |> 
+  dplyr::mutate(demand_instruments0 = prices)
+```
+
+```{python}
+ols_problem = pyblp.Problem(pyblp.Formulation('1 + mushy + prices'), r.py_model_dat)
+```
+
+```{python}
+ols_problem.products.X1
+
+ols_problem.products.ZD
+```
+
+```{python}
+ols_results = ols_problem.solve(method='1s')
+```
+
+```{r}
+#| label: check instrument
+
+lm(prices ~ price_instrument + factor(market_ids) + factor(product_ids), data = py_model_dat) |> broom::tidy()
+
+```
+
+```{r}
+py_model_dat_1 <- 
+  model_dat |> dplyr::rename(
+    market_ids = market
+    , product_ids = product
+    , shares = market_share
+    , prices = price_per_serving
+  ) |> 
+  dplyr::mutate(demand_instruments0 = price_instrument)
+```
+
+```{python}
+ols_problem = pyblp.Problem(
+  pyblp.Formulation('prices', absorb='C(market_ids) + C(product_ids)'), r.py_model_dat_1)
+```
+
+```{python}
+ols_results = ols_problem.solve(method='1s')
+```
+
+```{r}
+counterfactual_data <- py_model_dat_1 |> 
+  dplyr::filter(market_ids == "C01Q2")
+counterfactual_data
+```
+
+```{r}
+counterfactual_data |> 
+  dplyr::filter(stringr::str_starts(product_ids,"F1")) |> 
+  dplyr::pull(product_ids) |> unique()
+```
+
+```{r}
+counterfactual_data <- counterfactual_data |> 
+  dplyr::mutate(
+    new_prices =
+      dplyr::case_when(
+        product_ids == "F1B04" ~ prices/2
+        , TRUE ~ prices
+      )
+  )
+```
+
+```{python}
+new_shares = ols_results.compute_shares(
+  market_id = 'C01Q2'
+  , prices = r.counterfactual_data['new_prices']
+)
+```
+
+```{r}
+post_counterfactual_data <- counterfactual_data |> 
+  tibble::add_column(new_shares = py$new_shares) |> 
+  dplyr::mutate(pct_change = new_shares/shares)
+  
+```
+
+```{python}
+elasticities = ols_results.compute_elasticities(
+  market_id = 'C01Q2'
+)
+```
+
+```{r}
+py$elasticities
+```

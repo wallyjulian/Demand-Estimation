@@ -8,17 +8,17 @@ Most of the computational heavy-lifting in these exercises will be done by the o
 
 You should install PyBLP on top of the [Anaconda Distribution](https://www.anaconda.com/). Anaconda comes pre-packaged with all of PyBLP's dependencies and many more Python packages that are useful for statistical computing. Steps:
 
-1. [Install Anaconda](https://docs.anaconda.com/free/anaconda/install/) if you haven't already. You may wish to [create a new environment](https://docs.anaconda.com/free/anacondaorg/user-guide/work-with-environments/) for just these exercises, but this isn't strictly necessary.
-2. [Install PyBLP](https://github.com/jeffgortmaker/pyblp#installation). On the Anaconda command line, you can run the command `pip install pyblp`. If you have an older version of PyBLP installed, you can update it with `pip install --upgrade pyblp`.
+1.  [Install Anaconda](https://docs.anaconda.com/free/anaconda/install/) if you haven't already. You may wish to [create a new environment](https://docs.anaconda.com/free/anacondaorg/user-guide/work-with-environments/) for just these exercises, but this isn't strictly necessary.
+2.  [Install PyBLP](https://github.com/jeffgortmaker/pyblp#installation). On the Anaconda command line, you can run the command `pip install pyblp`. If you have an older version of PyBLP installed, you can update it with `pip install --upgrade pyblp`.
 
 If you're using Python, you have two broad options for how to do the coding exercises.
 
-- Use a [Jupyter Notebook](https://jupyter.org/install#jupyter-notebook). The solutions to each exercise will be in a notebook. In general, notebooks are a good way to weave text and code for short exercises, and to distribute quick snippets of code with others.
-- Use an integrated development environment (IDE). Once you get beyond a few hundred lines of code, I strongly recommend using an IDE and not notebooks. For Python, I recommend [VS Code](https://code.visualstudio.com/) or [PyCharm](https://www.jetbrains.com/pycharm/). The former is free and the latter has a free community edition with all the features you'll need for standard Python development. Both [integrate well](https://docs.anaconda.com/free/anaconda/ide-tutorials/) with Anaconda.
+-   Use a [Jupyter Notebook](https://jupyter.org/install#jupyter-notebook). The solutions to each exercise will be in a notebook. In general, notebooks are a good way to weave text and code for short exercises, and to distribute quick snippets of code with others.
+-   Use an integrated development environment (IDE). Once you get beyond a few hundred lines of code, I strongly recommend using an IDE and not notebooks. For Python, I recommend [VS Code](https://code.visualstudio.com/) or [PyCharm](https://www.jetbrains.com/pycharm/). The former is free and the latter has a free community edition with all the features you'll need for standard Python development. Both [integrate well](https://docs.anaconda.com/free/anaconda/ide-tutorials/) with Anaconda.
 
 If using a notebook, you can right click and save the following notebook template: [notebook.ipynb](https://github.com/Mixtape-Sessions/Demand-Estimation/raw/main/Exercises/Templates/notebook.ipynb). If using an IDE, you can right click and save the following script template: [script.py](https://github.com/Mixtape-Sessions/Demand-Estimation/raw/main/Exercises/Templates/script.py). Both import various packages used throughout the exercise.
 
-```python
+``` python
 import pyblp
 import numpy as np
 import pandas as pd
@@ -27,7 +27,7 @@ import statsmodels.formula.api as smf
 
 The notebook additionally configures these packages to reduce the amount of information printed to the screen.
 
-```python
+``` python
 pyblp.options.digits = 3
 pyblp.options.verbose = False
 pd.options.display.precision = 3
@@ -47,15 +47,15 @@ Compared to typical datasets you might use in your own work, the number of obser
 
 The data contains information about 24 breakfast cereals across 94 markets. Each row is a product-market pair. Each market has the same set of breakfast cereals, although with different prices and quantities. The columns in the data are as follows.
 
-Column              | Data Type | Description
-------------------- | --------- | -----------
-`market`            | String    | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988.
-`product`           | String    | The firm-brand pair that defines products $j$ used in these exercises. Each of 5 firms produces between 1 and 9 brands of cereal.
-`mushy`             | Binary    | A dummy product characteristic equal to one if the product gets soggy in milk.
-`servings_sold`     | Float     | Total quantity $q_{jt}$ of servings of the product sold in a market, which will be used to compute market shares.
-`city_population`   | Float     | Total population of the city, which will be used to define a market size.
-`price_per_serving` | Float     | The product's price $p_{jt}$ used in these exercises.
-`price_instrument`  | Float     | An instrument to handle price endogeneity in these exercises. Think of it as a cost-shifter, a Hausman instrument, or any other valid IV that we discussed in class.
+| Column | Data Type | Description |
+|----|----|----|
+| `market` | String | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988. |
+| `product` | String | The firm-brand pair that defines products $j$ used in these exercises. Each of 5 firms produces between 1 and 9 brands of cereal. |
+| `mushy` | Binary | A dummy product characteristic equal to one if the product gets soggy in milk. |
+| `servings_sold` | Float | Total quantity $q_{jt}$ of servings of the product sold in a market, which will be used to compute market shares. |
+| `city_population` | Float | Total population of the city, which will be used to define a market size. |
+| `price_per_serving` | Float | The product's price $p_{jt}$ used in these exercises. |
+| `price_instrument` | Float | An instrument to handle price endogeneity in these exercises. Think of it as a cost-shifter, a Hausman instrument, or any other valid IV that we discussed in class. |
 
 Throughout the exercises, we use these data to estimate an increasingly flexible BLP-style model of demand for cereal. We will use predictions from this model to see how our running example, cutting the price of one cereal, affects demand for that cereal and for its substitutes.
 
@@ -85,16 +85,16 @@ For the rest of the exercises, we'll use PyBLP to do our demand estimation. This
 
 PyBLP requires that some key columns have specific names. You can use [`.rename`](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.rename.html) to rename the following columns so that they can be understood by PyBLP.
 
-- `market` --> `market_ids`
-- `product` --> `product_ids`
-- `market_share` --> `shares`
-- `price_per_serving` --> `prices`
+-   `market` --\> `market_ids`
+-   `product` --\> `product_ids`
+-   `market_share` --\> `shares`
+-   `price_per_serving` --\> `prices`
 
 By default, PyBLP treats `prices` as endogenous, so it won't include them in its matrix of instruments. But the "instruments" for running an OLS regression are the same as the full set of regressors. So when running an OLS regression and not accounting for price endogeneity, we'll "instrument" for `prices` with `prices` themselves. We can do this by creating a new column `demand_instruments0` equal to `prices`. PyBLP will recognize all columns that start with `demand_instruments` and end with `0`, `1`, `2`, etc., as "excluded" instruments to be stacked with the exogenous characteristics to create the full set of instruments.
 
 With the correct columns in hand, we can initialize our [`pyblp.Problem`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Problem.html). To specify the same R-style formula for our regressors, use [`pyblp.Formulation`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Formulation.html). The full code should look like the following.
 
-```python
+``` python
 ols_problem = pyblp.Problem(pyblp.Formulation('1 + mushy + prices'), product_data)
 ```
 
@@ -102,7 +102,7 @@ If you `print(ols_problem)`, you'll get information about the configured problem
 
 To estimate the configured problem, use [`.solve`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Problem.solve.html). Use `method='1s'` to just do 1-step GMM instead of the default 2-step GMM. In this case, this will just run a simple linear OLS regression. The full code should look like the following.
 
-```python
+``` python
 ols_results = ols_problem.solve(method='1s')
 ```
 
@@ -164,8 +164,8 @@ To do so, you first need to tell PyBLP what firms own what products. Create a ne
 
 Even experienced software developers make a lot of mistakes when writing code. Writing "unit tests" or "integration tests" that check whether the code you've written seems to be working properly is incredibly important when writing complicated code to estimate demand. Perhaps the most useful test you can write when doing demand estimation (or most other types of structural estimation) is the following.
 
-1. Simulate fake data under some true parameters.
-2. Estimate your model on the simulated data and make sure that you can recover the true parameters, up to sampling error.
+1.  Simulate fake data under some true parameters.
+2.  Estimate your model on the simulated data and make sure that you can recover the true parameters, up to sampling error.
 
 If you do these steps many times, the resulting Monte Carlo experiment will also give you a good sense for the finite sample statistical properties of your estimator.
 
