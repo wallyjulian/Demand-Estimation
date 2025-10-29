@@ -1,0 +1,302 @@
+conda---
+title: Exercise 1
+jupyter: python3
+---
+
+
+
+```{python}
+import pyblp
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+
+pyblp.options.digits = 3
+pyblp.options.verbose = False
+pd.options.display.precision = 3
+pd.options.display.max_columns = 50
+
+import IPython.display
+IPython.display.display(IPython.display.HTML('<style>pre { white-space: pre !important; }</style>'))
+```
+
+### 1. Describe the data
+
+Let's load the data and look at a random sample. It's good practice to set your seed whenever you do something with a random number generator.
+
+```{python}
+product_data = pd.read_csv('https://github.com/Mixtape-Sessions/Demand-Estimation/raw/main/Exercises/Data/products.csv')
+product_data.sample(n=5, random_state=0)
+```
+
+### 2. Compute market shares
+
+Let's compute the market size and market shares.
+
+```{python}
+product_data['market_size'] = product_data['city_population'] * 90
+product_data['market_share'] = product_data['servings_sold'] / product_data['market_size']
+product_data['outside_share'] = 1 - product_data.groupby('market')['market_share'].transform('sum')
+product_data[['market_share', 'outside_share']].describe()
+```
+
+### 3. Estimate the pure logit model with OLS
+
+Let's use the R-style formula interface to statsmodels to estimate the pure logit model with an OLS regression. We'll use HC0 standard errors to align with PyBLP's default, which is to adjust for heteroskedasticity.
+
+```{python}
+product_data['logit_delta'] = np.log(product_data['market_share'] / product_data['outside_share'])
+statsmodels_ols = smf.ols('logit_delta ~ 1 + mushy + price_per_serving', product_data)
+statsmodels_results = statsmodels_ols.fit(cov_type='HC0')
+statsmodels_results.summary2().tables[1]
+```
+
+The coefficient on price is negative, which means demand is estimated to be sloping down. We'll compute elasticities later, which are more interpretable than the magnitude of the price coefficient here. To interpret the coefficient on mushy, we can divide it by the coefficient on price: 0.075 / 7.480 = $0.01 is the willingness to pay of consumers for a cereal being "mushy." There are likely a number of other characteristics that mushy is correlated with, which we're not including in this regression.
+
+### 4. Run the same regression with PyBLP
+
+Let's prep our data for use by PyBLP. We need to rename some columns and then use a similar R-style formula to set up our problem.
+
+```{python}
+product_data = product_data.rename(columns={
+    'market': 'market_ids',
+    'product': 'product_ids',
+    'market_share': 'shares',
+    'price_per_serving': 'prices',
+})
+product_data['demand_instruments0'] = product_data['prices']
+ols_problem = pyblp.Problem(pyblp.Formulation('1 + mushy + prices'), product_data)
+ols_problem
+```
+
+Let's double-check that PyBLP's instruments matrix is as we expect: a constant, mushy, and prices. The ordering is different, but it's the same.
+
+```{python}
+pd.DataFrame(ols_problem.products.ZD).sample(n=5, random_state=0)
+```
+
+Now let's run the same OLS regression.
+
+```{python}
+ols_results = ols_problem.solve(method='1s')
+ols_results
+```
+
+We can create a quick dataframe to nicely-format the estimates in this notebook.
+
+```{python}
+pd.DataFrame(index=ols_results.beta_labels, data={
+    ("Estimates", "Statsmodels"): statsmodels_results.params.values,
+    ("Estimates", "PyBLP"): ols_results.beta.flat,
+    ("SEs", "Statsmodels"): statsmodels_results.bse.values,
+    ("SEs", "PyBLP"): ols_results.beta_se.flat,
+})
+```
+
+We get the same estimates and the same standard errors.
+
+### 5. Add market and product fixed effects
+
+It's easiest to add fixed effects by absorbing them. This is done under the hood with iterative de-meaning. We'll drop the constant and the mushy dummy because these are collinear with the fixed effects.
+
+```{python}
+fe_problem = pyblp.Problem(pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), product_data)
+fe_problem
+```
+
+```{python}
+fe_results = fe_problem.solve(method='1s')
+fe_results
+```
+
+We get a more negative coefficient on price, suggesting that the OLS coefficient was biased upwards. This suggests that price was positively correlated with product/market-specific components of unobserved quality.
+
+### 6. Add an instrument for price
+
+First, let's run a first-stage regression of price on the price instrument in the data to make sure it's relevant.
+
+```{python}
+first_stage = smf.ols('prices ~ 0 + price_instrument + C(market_ids) + C(product_ids)', product_data)
+first_stage_results = first_stage.fit(cov_type='HC0')
+first_stage_results.summary2().tables[1].sort_index(ascending=False)
+```
+
+It seems relevant, being strongly positively correlated with price even after adjusting for market and product fixed effects. Now we'll use it to instrument for price.
+
+```{python}
+product_data = product_data.drop(columns='demand_instruments0').rename(columns={'price_instrument': 'demand_instruments0'})
+iv_problem = pyblp.Problem(pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), product_data)
+iv_problem
+```
+
+```{python}
+iv_results = iv_problem.solve(method='1s')
+iv_results
+```
+
+```{python}
+pd.DataFrame(index=fe_results.beta_labels, data={
+    ("Estimates", "OLS"): ols_results.beta[-1:].flat,
+    ("Estimates", "+FE"): fe_results.beta.flat,
+    ("Estimates", "+IV"): iv_results.beta.flat,
+    ("SEs", "OLS"): ols_results.beta_se[-1:].flat,
+    ("SEs", "+FE"): fe_results.beta_se.flat,
+    ("SEs", "+IV"): iv_results.beta_se.flat,
+})
+```
+
+Our estimate gets even more negative with an IV, suggesting that the within product *and* market component of unobserved quality was still positively correlated with price.
+
+### 7. Cut a price in half and see what happens
+
+Let's select the market in which we'll run the counterfactual and see what choices are available to consumers.
+
+```{python}
+counterfactual_market = 'C01Q2'
+counterfactual_data = product_data.loc[product_data['market_ids'] == counterfactual_market, ['product_ids', 'mushy', 'prices', 'shares']]
+counterfactual_data
+```
+
+Let's cut the price of the first product in half and use our estimated model to predict how market shares of all products in the market will change.
+
+```{python}
+counterfactual_data['new_prices'] = counterfactual_data['prices']
+counterfactual_data.loc[counterfactual_data['product_ids'] == 'F1B04', 'new_prices'] /= 2
+counterfactual_data['new_shares'] = iv_results.compute_shares(market_id=counterfactual_market, prices=counterfactual_data['new_prices'])
+counterfactual_data['iv_change'] = 100 * (counterfactual_data['new_shares'] - counterfactual_data['shares']) / counterfactual_data['shares']
+counterfactual_data
+```
+
+The market share of the product whose price we halved increased by more than 200%, suggesting that consumers are fairly responsive to price changes. The market shares of the other products all decreased, which makes sense (we need substitution from somehwere), but we see that they all decreased by the same percent, which seems unrealistic. We would expect more substitution from more similar products. Cannibalization estimates don't seem reasonable -- we'd expect more cannibalization from the other products of firm one that are more similar to the product whose price is being cut.
+
+### 8. Compute demand elasticities
+
+To get a sense for what's going on, we can compute demand elasticities.
+
+```{python}
+iv_elasticities = iv_results.compute_elasticities(market_id=counterfactual_market)
+pd.DataFrame(iv_elasticities)
+```
+
+The diagonal elements are useful statistics to report (perhaps as a quantity-weighted average or median) instead of the raw price coefficient, which is a bit hard to interpret on its own. They suggest that consumers are pretty elastic. The off-diagonal elements are cross-price elasticities, which are all fairly small. The non-realistic substitution patterns we saw in our counterfactual also show up here: all cross-price elasticities in each column are the same, even though we'd expect some differences for more similar products.
+
+## Supplemental Questions
+
+### 1. Try different standard errors
+
+It is likely that there are many market-varying unobserved product characteristics, such as advertising, so it may be important to cluster by product. First we'll define clusters.
+
+```{python}
+product_data['clustering_ids'] = product_data['product_ids']
+cluster_problem = pyblp.Problem(pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), product_data)
+```
+
+Then we'll solve the problem, telling PyBLP to use the clusters when computing standard errors.
+
+```{python}
+cluster_results = cluster_problem.solve(method='1s', se_type='clustered')
+pd.DataFrame(index=fe_results.beta_labels, data={
+    ("Estimates", "Unclustered"): iv_results.beta.flat,
+    ("SEs", "Unclustered"): iv_results.beta_se.flat,
+    ("Estimates", "Clustered"): cluster_results.beta.flat,
+    ("SEs", "Clustered"): cluster_results.beta_se.flat,
+})
+```
+
+Standard errors are somewhat larger, as expected. Error correlation not accounted for typically biases standard errors downward.
+
+### 2. Compute confidence intervals for your counterfactual
+
+For speed in this exercise, let's just use 100 draws. In practice, you will generally want to use more.
+
+```{python}
+bootstrap_results = cluster_results.bootstrap(draws=100, seed=0)
+bootstrap_results
+```
+
+Let's get the bootstrapped shares for the counterfactual market. Their first axis indexes draws.
+
+```{python}
+bootstrap_shares = bootstrap_results.bootstrapped_shares[:, product_data['market_ids'] == counterfactual_market]
+bootstrap_shares.shape
+```
+
+Let's also replicate the bootstrapped prices, one for each draw, and bootstrap the counterfactual.
+
+```{python}
+bootstrap_new_prices = np.tile(counterfactual_data['new_prices'].values, (100, 1))
+bootstrap_new_shares = bootstrap_results.compute_shares(market_id=counterfactual_market, prices=bootstrap_new_prices)
+bootstrap_changes = 100 * (bootstrap_new_shares - bootstrap_shares) / bootstrap_shares
+```
+
+Now let's compute 95% confidence intervals for each change.
+
+```{python}
+counterfactual_data['iv_change_lb'] = np.squeeze(np.percentile(bootstrap_changes, 2.5, axis=0))
+counterfactual_data['iv_change_ub'] = np.squeeze(np.percentile(bootstrap_changes, 97.5, axis=0))
+counterfactual_data
+```
+
+The confidence intervals are fairly tight. This is because the price coefficient estimate has a fairly low standard error, even after clustering our standard errors.
+
+### 3. Impute marginal costs from pricing optimality
+
+Let's add firm identifiers to the data and re-solve the problem.
+
+```{python}
+product_data['firm_ids'] = product_data['product_ids'].str[:2]
+firm_problem = pyblp.Problem(pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), product_data)
+firm_results = firm_problem.solve(method='1s', se_type='clustered')
+```
+
+Now let's impute marginal costs from pricing optimality and compare them with prices. We can also compute markups and profits.
+
+```{python}
+product_data['costs'] = firm_results.compute_costs()
+product_data['profit_per_serving'] = product_data['prices'] - product_data['costs']
+product_data['markups'] = product_data['profit_per_serving'] / product_data['costs']
+product_data[['prices', 'costs', 'profit_per_serving', 'markups']].describe()
+```
+
+These marginal costs do look somewhat reasonable. They are all positive and markups seem reasonable, generally on the order of 30% to 60%. Based on these estimates, firms seem to be enjoying a few cents of profit per serving sold.
+
+Of course, in practice pricing may be more complicated than the simple model here. For example, prices may be bargained over with retailers instead of set by the producer. And pricing aside, given that our demand model is particularly simple right now, we may not want to particularly trust our marginal cost estimates because they depend crucially our estimates of demand elasticities, which are currently not very realistic.
+
+### 4. Check your code by simulating data
+
+Let's simulate some new prices and shares under a somewhat less elastic price coefficient, say $\alpha = -20$. To calibrate the simulation to our setting, we'll use the same fixed effects and unobserved quality estimated by PyBLP.
+
+```{python}
+rng = np.random.default_rng(seed=0)
+simulation = pyblp.Simulation(
+    product_formulations=pyblp.Formulation('0 + prices'),
+    product_data=product_data,
+    beta=-20,
+    xi=iv_results.xi_fe + iv_results.xi,
+)
+simulation
+```
+
+Next, we'll solve for equilibrium prices and shares, using the above-computed marginal costs.
+
+```{python}
+simulation_results = simulation.replace_endogenous(costs=product_data['costs'])
+simulation_results
+```
+
+Solving for equilibrium prices seems to have been successful. First order conditions (profit gradient norms) are all near to zero and second order conditions (profit hessian eigenvalues) are all negative, indicating that prices are indeed profit-maximizing. In practice we may want to try multiple different starting values for prices since this can technically be a nonconvex optimization problem. We'll learn more about best practices for nonlinear optimization on the second day.
+
+Now let's see if we can recover the above true price coefficient. We'll use our costs as our cost-shifter.
+
+```{python}
+simulation_data = product_data.copy()
+simulation_data['shares'] = simulation_results.product_data.shares
+simulation_data['prices'] = simulation_results.product_data.prices
+simulation_data['demand_instruments0'] = simulation_data['costs']
+simulation_problem = pyblp.Problem(pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), simulation_data)
+simulation_problem_results = simulation_problem.solve(method='1s', se_type='clustered')
+simulation_problem_results
+```
+
+Our estimate does not seem to be significantly different from the true $\alpha = -20$, as we'd hope.
+

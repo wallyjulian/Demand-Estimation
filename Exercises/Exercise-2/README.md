@@ -14,10 +14,10 @@ In your own work, when incorporating demographic data into estimation, you will 
 
 The demographic dataset contains information about 20 individuals drawn from the Current Population Survey for each of the 94 markets in the product data. Each row is a different individual. The columns in the data are as follows.
 
-Column             | Data Type | Description
------------------- | --------- | -----------
-`market`           | String    | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988.
-`quarterly_income` | Float     | The quarterly income of the individual in dollars.
+| Column | Data Type | Description |
+|----|----|----|
+| `market` | String | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988. |
+| `quarterly_income` | Float | The quarterly income of the individual in dollars. |
 
 In today and tomorrow's exercises, we will use these demographic data to introduce income-specific preference heterogeneity into our BLP model of demand for cereal and see how our counterfactual changes. By incorporating income, we will also be able to speak to distributional concerns: how will counterfactual changes in the market differentially affect high- and low-income consumers?
 
@@ -45,19 +45,19 @@ To identify our new parameter, we need a new instrument. We'll use the recommend
 
 When initializing your new [`pyblp.Problem`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Problem.html), you'll need two new [`pyblp.Formulation`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Formulation.html) instances to model the interaction between `mushy` and `log_income`. First, replace your old formulation with a tuple
 
-```python
+``` python
 product_formulations = (pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), pyblp.Formulation('0 + mushy'))
 ```
 
 This defines, in PyBLP lingo, the formulations for the `X1` and `X2` matrices. The `X1` matrix is the one with `beta` coefficients. The `X2` matrix is interacted with consumer type-specific variables like your demographics $y_{it}$. There `0` values in the formulations guarantee that they won't have constant terms (by default a constant is added, unless there are absorbed fixed effects). You'll also need a new formulation for consumer demographics.
 
-```python
+``` python
 agent_formulation = pyblp.Formulation('0 + log_income')
 ```
 
 With these in hand, we can define the new problem. See the [`pyblp.Problem`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Problem.html) documentation for the ordering and names of arguments.
 
-```python
+``` python
 pyblp.Problem(product_formulations, product_data, agent_formulation, agent_data)
 ```
 
@@ -85,13 +85,13 @@ Using the new estimates, re-run the same price cut counterfactual from last exer
 
 Like for mushy, our cross-market income variation allows us to estimate a second parameter in $\Pi$ on `prices` $\times$ `log_income`. Unlike mushy, which doesn't vary across markets, we actually have cross-market variation in prices, which will allow us to potentially estimate a parameter in $\Sigma$ on `prices`.
 
-To add these two new parameters, we'll need two new instruments. Since we can't have endogenous prices in our instruments, we'll first set a new column `predicted_prices`  equal to the fitted values from the price IV first stage regression that we ran yesterday. If you used `statsmodels`, you can just get these from [`.fittedvalues`](https://www.statsmodels.org/dev/generated/statsmodels.regression.linear_model.RegressionResults.fittedvalues.html) of your regression results object. Verify that `prices` and `predicted_prices` are strongly correlated, for example with [`.corr`](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.corr.html).
+To add these two new parameters, we'll need two new instruments. Since we can't have endogenous prices in our instruments, we'll first set a new column `predicted_prices` equal to the fitted values from the price IV first stage regression that we ran yesterday. If you used `statsmodels`, you can just get these from [`.fittedvalues`](https://www.statsmodels.org/dev/generated/statsmodels.regression.linear_model.RegressionResults.fittedvalues.html) of your regression results object. Verify that `prices` and `predicted_prices` are strongly correlated, for example with [`.corr`](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.corr.html).
 
 To target the new parameter in $\Pi$, we'll follow the lecture's recommendation and add a new `demand_instruments2` equal to the interaction between the log income mean and `predicted_prices`. To target the new parameter in $\Sigma$, we'll also follow the lecture's recommendation and add a new `demand_instruments3` equal to the sum of squared distances between `predicted_prices` and all other `predicted_prices` in the same market. You could construct this market-by-market by using [`.groupby`](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.groupby.html) and [`.transform`](https://pandas.pydata.org/docs/reference/api/pandas.core.groupby.DataFrameGroupBy.transform.html) with a custom [function](https://docs.python.org/3/tutorial/controlflow.html#defining-functions) that accepts a market's `predicted_prices` as an argument, computes a matrix of all pairwise differences between these values (e.g., with `x[:, None] - x[None, :]`), squares them, and [sums](https://numpy.org/doc/stable/reference/generated/numpy.sum.html) them across columns.
 
 When initializing the problem, we'll need to add a new `prices` term in the `X2` formulation: `0 + mushy + prices`. Otherwise, with the updated product data, initializing the problem is the same. When solving the problem, however, the extra column in the `X2` formulation means that we need an extra row in our configuration for `sigma` and `pi`. First, `sigma` should be a $2 \times 2$ matrix corresponding to the two columns in `X2`. All elements will be zero (indicating that the corresponding elements in $\Sigma$ will be fixed to zero), except for the bottom-right value, which we'll set to some arbitrary non-zero starting values, say `1`. Similarly, `pi` should be a $2 \times 1$ matrix corresponding to the two columns in `X2` and the one column in the agent formulation. We'll set the top element equal to some starting value that's close to our last estimate, say `0.2`, and the bottom element equal to something arbitrary for the new parameter, say `1` again. Your `sigma` and `pi` arguments should look like
 
-```python
+``` python
 sigma=[
     [0, 0],
     [0, 1],
@@ -128,7 +128,7 @@ You can do so with [`scipy.stats.qmc.Halton`](https://docs.scipy.org/doc/scipy/r
 
 A particularly computationally-efficient approach to approximating a Gaussian distribution is with [quadrature](https://en.wikipedia.org/wiki/Gaussian_quadrature). If you're working with a model where consumer preference heterogeneity is not particularly complicated, you may want to try to replace Monte Carlo or quasi-Monte Carlo draws with many fewer nodes/weights that very well approximate the distribution.
 
-You can construct quadrature nodes and weights with  [`pyblp.build_integration`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.build_integration.html#pyblp.build_integration) with `specification='product'` in [`pyblp.Integration`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Integration.html). The `'product'` specification means that PyBLP will take the cross-product of the quadrature nodes and weights for each univarate $N(0, 1)$. If you have, say, `size=7` nodes/weights per market for each $N(0, 1)$ but 5 dimensions of heterogeneity (i.e., `nodes0`, `nodes1`, `nodes2`, `nodes3`, and `nodes4`), this will give $7^5 = 16,807$ consumer types per market. This is known as the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), which Monte Carlo integration does not suffer from as much. With this many dimensions of heterogeneity, you could either switch to back to Monte Carlo integration or try using [sparse grid](https://en.wikipedia.org/wiki/Sparse_grid) integration, which more carefully chooses quadrature nodes/weights in higher dimensions. You can do this with `specification='grid'`.
+You can construct quadrature nodes and weights with [`pyblp.build_integration`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.build_integration.html#pyblp.build_integration) with `specification='product'` in [`pyblp.Integration`](https://pyblp.readthedocs.io/en/stable/_api/pyblp.Integration.html). The `'product'` specification means that PyBLP will take the cross-product of the quadrature nodes and weights for each univarate $N(0, 1)$. If you have, say, `size=7` nodes/weights per market for each $N(0, 1)$ but 5 dimensions of heterogeneity (i.e., `nodes0`, `nodes1`, `nodes2`, `nodes3`, and `nodes4`), this will give $7^5 = 16,807$ consumer types per market. This is known as the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), which Monte Carlo integration does not suffer from as much. With this many dimensions of heterogeneity, you could either switch to back to Monte Carlo integration or try using [sparse grid](https://en.wikipedia.org/wiki/Sparse_grid) integration, which more carefully chooses quadrature nodes/weights in higher dimensions. You can do this with `specification='grid'`.
 
 In our setting, we are only using one set of $N(0, 1)$ draws for unobserved preference heterogenity for price. We can use `specification='product'`, `size=7`, and `dimensions=2` to construct two $N(0, 1)$ draws, the second of which we'll want to convert into log income draws. We can do this by estimating a lognormal distribution for income in each market (you'll need to compute market-specific means and standard deviations of log income), and transforming the second column of $N(0, 1)$ draws into log income draws. Try doing this and see if your estimates (and compute time) differs much from before. If they do, this indicates that a lognormal distribution for income may not be a great parametric assumption, and a Monte Carlo approach may have made more sense than quadrature.
 
@@ -154,7 +154,7 @@ In the supplemental exercises of the first exercise, we used a canonical assumpt
 
 Like the first exercise, you will need a column of `firm_ids` to tell PyBLP which firms produce what cereals. To impose the assumption that $c_{jt} = x_{jt}'\gamma + \omega_{jt}$ for some characteristics $x_{jt}$, you'll need to specify a third formulation in your `product_formulations` tuple. For simplicity, try assuming that the only observed characteristics that affect marginal costs are a constant and the `mushy` dummy.
 
-```python
+``` python
 product_formulations = (
     pyblp.Formulation('0 + prices', absorb='C(market_ids) + C(product_ids)'), 
     pyblp.Formulation('0 + mushy + prices'), 

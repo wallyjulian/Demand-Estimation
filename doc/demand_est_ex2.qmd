@@ -1,0 +1,68 @@
+---
+title: "Demand Est - EX2"
+author: "L. Odette"
+format: html
+page-layout: full
+toc: true
+editor: visual
+code-fold: true
+code-line-numbers: true
+code-block-border-left: "#31BAE9"
+theme: sandstone
+fontsize: 85%
+self-contained: true
+date: 10/24/2025
+---
+
+```{r}
+#| echo: false
+#| message: false
+require(ggplot2)
+require(patchwork)
+
+source('../R/conda_init.R')
+
+theme_set(theme_bw(base_size = 18) + theme(legend.position = "top"))
+
+# https://medium.com/save-the-data/how-to-use-python-in-r-with-reticulate-and-conda-36685534f06a
+require(reticulate)
+Sys.setenv(RETICULATE_PYTHON="../envs/bin/python")
+```
+
+```{python}
+import pyblp
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+```
+
+```{r}
+#| label: read product data
+dat <- 
+  readr::read_csv("../Exercises/Data/products.csv", show_col_types = FALSE)
+
+demo <- 
+  readr::read_csv("../Exercises/Data/demographics.csv", show_col_types = FALSE) |> 
+  dplyr::mutate(log_quarterly_income = log(quarterly_income))
+```
+
+```{r}
+
+dat |> dplyr::group_by(market) |> 
+  dplyr::summarize(
+    across(
+      c(price_per_serving, mushy)
+      , list(mean = mean, sd = sd, count = length)
+    ) 
+  ) |> summary()
+
+demo |> dplyr::group_by(market) |> 
+  dplyr::summarize(
+    across(
+      log_quarterly_income
+      , list(mean = mean, sd = sd, count = length)
+    ) 
+  ) |> summary()
+  
+
+```
