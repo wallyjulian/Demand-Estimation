@@ -14,4 +14,67 @@ self-contained: true
 date: 10/22/2025
 ---
 
-## Quarto
+## Model Overview
+
+BLP is a model of individuals making a discrete choice from different alternatives.
+
+-   Choices are made in `markets` denoted by $t \in \mathcal{T}$.
+    -   these are time periods, geographic regions, period-region pairs, etc.
+-   Each market has `individuals` with types denoted by $i \in \mathcal{I}_t$.
+    -   different demographics and preferences.
+-   Individuals are faced with `choices` denoted by $j \in \mathcal{J}_t$.
+    -   products, hospitals, candidates, etc.
+    -   [**outside option**]{.underline} $j = 0$: no purchase, no treatment, no vote, etc.
+
+## Utility Maximization
+
+$$
+\max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} 
+$$
+
+-   Individuals choose an alternative to maximize their (indirect) utility $u_{ijt}$.
+    -   we will specify a function for $u_{ijt}$ and use revealed preferences to estimate it.
+-   It'll help to decompose utility into three parts.
+    -   mean utility $\delta_{jt}$: Average preference across all individuals in the market.
+    -   systematic heterogeneity $\mu_{ijt}$: Different preferences, e.g. due to different demographics.
+    -   idiosyncratic heterogeneity $\varepsilon_{ijt}$: Superimposed noise that accommodates estimation.
+
+$$
+\max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} =\delta_{jt} + \mu_{ijt} + \varepsilon_{ijt}
+$$
+
+-   We'll parameterize $\delta_{jt}$ and $\mu_{ijt}$ and make a convenient assumption about $\varepsilon_{ijt}$.
+
+## Aggregate Market Shares
+
+$$
+\max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \mu_{ijt} + \varepsilon_{ijt} \quad\implies\quad s_{ijt} = \Pr_{\varepsilon_{it}}\left(u_{ijt} \geq u_{ikt} \text{ for all } k \in \mathcal{J}_t \cup \{0\}\right)
+$$
+
+-   Assume a convenient distribution for $\varepsilon_{ijt}$: i.i.d. type I extreme value.
+    -   **Logit shocks** are convenient because they give multinomial logit choice probabilities $s_{ijt}$.
+
+$$
+\max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \mu_{ijt} + \varepsilon_{ijt} \quad\implies\quad s_{ijt} = \frac{\exp(\delta_{jt} + \mu_{ijt})}{\sum_{k \in \mathcal{J}_t \cup \{0\}} \exp(\delta_{kt} + \mu_{ikt})}
+$$
+
+-   Want $\mu_{ijt}$ to be sufficiently flexible that this convenient assumption matters little.
+
+    -   Possible to eliminate $\varepsilon_{ijt}$ but computation gets difficult.
+
+-   Each type $i$ is a share $w_{it}$ of the population. Aggregating over them gives market shares. $$
+            s_{jt} = \sum_{i \in \mathcal{I}_t} w_{it} \cdot s_{ijt}
+    $$
+
+-   We'll match these to observed quantities $q_{jt} = s_{jt} \cdot M_t$ in our data.
+
+## Choosing Market Size
+
+-   In our data, we observe quantities $q_{jt} = s_{jt} \cdot M_t$.
+    -   Need to divide by some market size $M_t$ to get our model's market shares $s_{jt}$.
+    -   Issue here is that we often don't observe the quantity of outside choices $q_{0t}$.
+-   Sometimes the choice of market size ([potential]{.underline} demand) is straightforward.
+    -   Market size for drugs to treat a condition is how many people have that condition.
+-   But typically, the choice of market size is neither **clear nor innocuous**.
+    -   E.g. how many choices of which cereal to buy are made every day in a specific city?
+    -   Population $\times$ max cereals per day? Foot traffic estimate $\times$ max cereals per trip?
