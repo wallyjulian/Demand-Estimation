@@ -1,0 +1,17 @@
+---
+title: "Course Notes"
+author: "L. Odette"
+format: html
+page-layout: full
+toc: true
+editor: visual
+code-fold: true
+code-line-numbers: true
+code-block-border-left: "#31BAE9"
+theme: sandstone
+fontsize: 85%
+self-contained: true
+date: 10/22/2025
+---
+
+## Quarto
