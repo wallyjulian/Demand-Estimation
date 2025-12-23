@@ -51,7 +51,7 @@ $$
 \max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \mu_{ijt} + \varepsilon_{ijt} \quad\implies\quad s_{ijt} = \Pr_{\varepsilon_{it}}\left(u_{ijt} \geq u_{ikt} \text{ for all } k \in \mathcal{J}_t \cup \{0\}\right)
 $$
 
--   Assume a convenient distribution for $\varepsilon_{ijt}$: i.i.d. type I extreme value.
+-   Assume a convenient distribution for $\varepsilon_{ijt}$: i.i.d. type I extreme value ([Gumbel](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366g.htm)).
     -   **Logit shocks** are convenient because they give multinomial logit choice probabilities $s_{ijt}$.
 
 $$
