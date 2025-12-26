@@ -11,7 +11,7 @@ code-block-border-left: "#31BAE9"
 theme: sandstone
 fontsize: 85%
 self-contained: true
-date: 10/22/2025
+date: 12/26/2025
 ---
 
 ## Model Overview
@@ -51,8 +51,10 @@ $$
 \max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \mu_{ijt} + \varepsilon_{ijt} \quad\implies\quad s_{ijt} = \Pr_{\varepsilon_{it}}\left(u_{ijt} \geq u_{ikt} \text{ for all } k \in \mathcal{J}_t \cup \{0\}\right)
 $$
 
--   Assume a convenient distribution for $\varepsilon_{ijt}$: i.i.d. type I extreme value ([Gumbel](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366g.htm)).
+-   Assume a convenient distribution for $\varepsilon_{ijt}$: i.i.d. type I [extreme value](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366g.htm) (or [Gumbel](https://en.wikipedia.org/wiki/Gumbel_distribution)) distribution[^1].
     -   **Logit shocks** are convenient because they give multinomial logit choice probabilities $s_{ijt}$.
+
+[^1]: The Gumbel distribution is used to model the distribution of the maximum (or the minimum) of a number of samples of various distributions. In the [latent variable](https://en.wikipedia.org/wiki/Latent_variable "Latent variable") formulation of the [multinomial logit](https://en.wikipedia.org/wiki/Multinomial_logit "Multinomial logit") model — common in [discrete choice](https://en.wikipedia.org/wiki/Discrete_choice "Discrete choice") theory — the errors of the latent variables follow a Gumbel distribution. This is useful because the difference of two Gumbel-distributed [random variables](https://en.wikipedia.org/wiki/Random_variable "Random variable") has a [logistic distribution](https://en.wikipedia.org/wiki/Logistic_distribution "Logistic distribution").
 
 $$
 \max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \mu_{ijt} + \varepsilon_{ijt} \quad\implies\quad s_{ijt} = \frac{\exp(\delta_{jt} + \mu_{ijt})}{\sum_{k \in \mathcal{J}_t \cup \{0\}} \exp(\delta_{kt} + \mu_{ikt})}
@@ -62,7 +64,7 @@ $$
 
     -   Possible to eliminate $\varepsilon_{ijt}$ but computation gets difficult.
 
--   Each type $i$ is a share $w_{it}$ of the population. Aggregating over them gives market shares. $$
+-   Each type $i$ is a share $w_{it}$ of the population. Aggregating over them gives **market shares**. $$
             s_{jt} = \sum_{i \in \mathcal{I}_t} w_{it} \cdot s_{ijt}
     $$
 
@@ -78,3 +80,227 @@ $$
 -   But typically, the choice of market size is neither **clear nor innocuous**.
     -   E.g. how many choices of which cereal to buy are made every day in a specific city?
     -   Population $\times$ max cereals per day? Foot traffic estimate $\times$ max cereals per trip?
+
+## Identification and Normalizations
+
+$$
+ \max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \mu_{ijt} + \varepsilon_{ijt}
+$$ -
+
+-   We'll estimate our utility function with **revealed preferences**. -
+
+    -   Holding $\mu_{ijt}$ fixed, a higher quantity $q_{jt} > q_{kt}$ implies a higher mean utility $\delta_{jt} > \delta_{kt}$.
+
+-   Utility is invariant to positive affine transformations. Need two normalizations. $$u_{ijt} > u_{ikt} \quad \xLeftrightarrow{b > 0}\quad a + b \cdot u_{ijt} > a + b \cdot u_{ikt}$$
+
+    a.  **Level:** We will normalize $u_{i0t} = \varepsilon_{i0t}$, i.e. $\delta_{0t} = \mu_{i0t} = 0$ .$\implies$ Estimates are relative to outside option utility.
+    b.  **Scale:** We already normalized $\text{Var}(\varepsilon_{ijt}) = \pi^2 / 6$ when deriving choice probabilities. $\implies$ Estimates are relative to scale of noise.
+
+    -   Now that our model can in theory be identified, how do we estimate it?
+
+## Pure Logit Model
+
+$$
+\max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} + \cancelto{0}{\mu_{ijt}} + \varepsilon_{ijt} 
+$$
+
+-   Start with the simplest case: no heterogenous utility.
+-   Market shares simplify. No aggregation over individual types.
+
+$$
+\max_{j \in \mathcal{J}_t \cup \{0\}} u_{ijt} = \delta_{jt} +\varepsilon_{ijt}\quad\implies\quad s_{jt}=\frac{\exp \delta_{jt}}{1+\sum_{k \in \mathcal{J}_t} \exp \delta_{kt}}\quad\implies\quad \log\frac{s_{jt}}{s_{0t}}=\delta_{jt}
+$$
+
+-   We can recover mean utilities from observed market shares \citep{berry1994estimating}.
+    -   If we specify a function for $\delta_{jt}$, we'll have a linear regression!
+
+## Pure Logit Estimating Equation
+
+$$
+\log\frac{s_{jt}}{s_{0t}}=\delta_{jt}= \alpha p_{jt} + x_{jt}'\beta+\xi_{jt}
+$$ \## Interpreting Parameters
+
+-   Let's say we estimate this equation. How to interpret our parameter estimates?
+-   Prices are in dollars, so the units of $\alpha$ are \`\`utils'' per dollar. Not very helpful.
+    -   Instead, report own-price elasticities, or a quantity-weighted average/median.
+    -   You can derive elasticities by differentiating the multinomial logit expression for $s_{jt}$.
+
+$$
+   \eta_{jjt} = \frac{\partial\log q_{jt}}{\partial\log p_{jt}} = \frac{\partial q_{jt}}{\partial p_{jt}} \frac{p_{jt}}{q_{jt}} = \frac{\partial s_{jt}}{\partial p_{jt}} \frac{p_{jt}}{s_{jt}} = \alpha \cdot p_{jt} \cdot (1 - s_{jt})
+$$
+
+-   If $x_{jt}$ is a `mushy` cereal dummy, $\beta$ is `utils` from mushyness. Again, not helpful.
+    -   Instead, report $\beta / \alpha$, the dollar willingness to pay for mushyness.
+
+## Exercise 1
+
+```{r}
+#| echo: false
+#| message: false
+#| label: initialization
+require(ggplot2)
+require(patchwork)
+
+source('../R/conda_init.R')
+
+theme_set(theme_bw(base_size = 18) + theme(legend.position = "top"))
+
+# https://medium.com/save-the-data/how-to-use-python-in-r-with-reticulate-and-conda-36685534f06a
+require(reticulate)
+Sys.setenv(RETICULATE_PYTHON="../envs/bin/python")
+```
+
+```{python}
+#| label: import python packages
+#| code-summary: import python packages
+import pyblp
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+```
+
+```{r}
+#| label: read product data
+#| code-summary: read product data
+dat <- 
+  readr::read_csv("../Exercises/Data/products.csv", show_col_types = FALSE)
+```
+
+| Column | Data Type | Description |
+|------------------------|------------------------|------------------------|
+| `market` | String | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988. |
+| `product` | String | The firm-brand pair that defines products $j$ used in these exercises. Each of 5 firms produces between 1 and 9 brands of cereal. |
+| `mushy` | Binary | A dummy product characteristic equal to one if the product gets soggy in milk. |
+| `servings_sold` | Float | Total quantity $q_{jt}$ of servings of the product sold in a market, which will be used to compute market shares. |
+| `city_population` | Float | Total population of the city, which will be used to define a market size. |
+| `price_per_serving` | Float | The product's price $p_{jt}$ used in these exercises. |
+| `price_instrument` | Float | An instrument to handle price endogeneity in these exercises. Think of it as a cost-shifter, a Hausman instrument, or any other valid IV that we discussed in class. |
+
+```{r}
+#| label: describe data
+#| code-summary: describe data
+dat |> summary()
+```
+
+```{r}
+#| label: create shares
+#| code-summary: create shares
+
+share_dat <- dat |> 
+  dplyr::mutate(
+    market_size = city_population * 90            # estimate market size
+    , market_share = servings_sold / market_size  # compute share quantity sold
+  ) |> 
+  dplyr::group_by(market) |>                      # group by market
+  dplyr::mutate(
+    inside_share_sum = sum(market_share)          # sum inside shares
+    , outside_share = 1 - inside_share_sum        # calculate outside share (i.e. none of above)
+  ) |> 
+  dplyr::ungroup()
+
+share_dat |>                                      # summarize shares across markets
+  dplyr::summarize(
+    min_s0t = min(outside_share)
+    , max_s0t = max(outside_share)
+  )
+
+```
+
+```{r}
+#| label: compute logit share and then run regression
+#| code-summary: compute logit share and then run regression
+#
+model_dat <- share_dat |> 
+  dplyr::mutate(
+    logit_delta = log(market_share / outside_share)
+  )
+
+lm(logit_delta ~ 1 + price_per_serving + mushy, data = model_dat) |> broom::tidy()
+```
+
+```{r}
+#| label: rename columns for use in pyblp
+#| code-summary: rename columns for use in pyblp
+py_model_dat <- 
+  model_dat |> dplyr::rename(
+    market_ids = market
+    , product_ids = product
+    , shares = market_share
+    , prices = price_per_serving
+  ) |> 
+  dplyr::mutate(demand_instruments0 = prices)
+```
+
+```{python}
+#| label: formulate problem for pyblp
+#| code-summary: formulate problem for pyblp
+ols_problem = pyblp.Problem(pyblp.Formulation('1 + mushy + prices'), r.py_model_dat)
+```
+
+```{python}
+#| label: not sure
+#| code-summary: not sure
+ols_problem.products.X1
+
+ols_problem.products.ZD
+```
+
+```{python}
+#| label: solve problem with pyblp
+#| code-summary: solve problem with pyblp
+ols_results = ols_problem.solve(method='1s')
+```
+
+```{r}
+#| label: check instrument
+#| code-summary: check instrument
+#
+lm(prices ~ price_instrument + factor(market_ids) + factor(product_ids), data = py_model_dat) |> broom::tidy()
+
+```
+
+```{r}
+#| label: rename columns again for use in pyblp with instrument
+#| code-summary: rename columns again for use in pyblp with instrument
+#
+py_model_dat_1 <- 
+  model_dat |> dplyr::rename(
+    market_ids = market
+    , product_ids = product
+    , shares = market_share
+    , prices = price_per_serving
+  ) |> 
+  dplyr::mutate(demand_instruments0 = price_instrument)
+```
+
+```{python}
+#| label: formulate problem with fixed effects for pyblp
+#| code-summary: formulate problem with fixed effects for pyblp
+#
+ols_problem = pyblp.Problem(
+  pyblp.Formulation('prices', absorb='C(market_ids) + C(product_ids)'), r.py_model_dat_1)
+```
+
+```{python}
+#| label: solve problem with fixed effects for pyblp
+#| code-summary: solve problem with fixed effects for pyblp
+
+ols_results = ols_problem.solve(method='1s')
+```
+
+```{r}
+#| label: generate counterfacual data
+#| code-summary: generate counterfacual data
+
+counterfactual_data <- py_model_dat_1 |> 
+  dplyr::filter(market_ids == "C01Q2")
+counterfactual_data
+```
+
+```{r}
+#| label: filter counterfacual data
+#| code-summary: filter counterfacual data
+counterfactual_data |> 
+  dplyr::filter(stringr::str_starts(product_ids,"F1")) |> 
+  dplyr::pull(product_ids) |> unique()
+```

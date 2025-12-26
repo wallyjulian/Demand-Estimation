@@ -43,7 +43,7 @@ dat <-
 ```
 
 | Column | Data Type | Description |
-|----|----|----|
+|------------------------|------------------------|------------------------|
 | `market` | String | The city-quarter pair that defines markets $t$ used in these exercises. The data were motivated by real cereal purchase data across 47 US cities in the first 2 quarters of 1988. |
 | `product` | String | The firm-brand pair that defines products $j$ used in these exercises. Each of 5 firms produces between 1 and 9 brands of cereal. |
 | `mushy` | Binary | A dummy product characteristic equal to one if the product gets soggy in milk. |
