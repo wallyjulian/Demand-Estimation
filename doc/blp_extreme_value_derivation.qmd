@@ -1,0 +1,175 @@
+---
+title: "Type I Extreme Value Distribution in the BLP Model"
+subtitle: "Derivation of the Logit Choice Probability"
+author: "Senior Economist - Econometric Pricing Theory"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+  pdf:
+    documentclass: article
+    geometry: margin=1in
+    toc: true
+    number-sections: true
+---
+
+# Introduction
+
+The BLP (Berry, Levinsohn, and Pakes, 1995) model employs Type I extreme value distribution for idiosyncratic shocks, a crucial modeling choice that balances computational tractability with economic realism. This document provides a detailed mathematical derivation showing how this assumption leads to the familiar logit form conditional on random coefficients.
+
+# Model Setup
+
+## Utility Specification
+
+Consumer $i$'s utility from product $j$ is given by:
+
+$$u_{ij} = \delta_j + \mu_{ij} + \varepsilon_{ij}$$
+
+where:
+
+- $\delta_j$ represents the mean utility of product $j$ (common to all consumers)
+- $\mu_{ij}$ captures consumer-specific deviations from mean utility (random coefficients)  
+- $\varepsilon_{ij}$ is the idiosyncratic shock following Type I extreme value distribution
+
+## Type I Extreme Value Distribution Properties
+
+The Type I extreme value (Gumbel) distribution has the following characteristics:
+
+**Cumulative Distribution Function (CDF):**
+
+$$F(\varepsilon) = \exp(-\exp(-\varepsilon))$$
+
+**Probability Density Function (PDF):**
+
+$$f(\varepsilon) = \exp(-\varepsilon - \exp(-\varepsilon))$$
+
+These specific functional forms are what enable the closed-form solution for choice probabilities.
+
+# Derivation of Choice Probability
+
+## Choice Rule
+
+Consumer $i$ chooses product $j$ if and only if it provides the highest utility among all available alternatives:
+
+$$\text{Choose } j \iff u_{ij} > u_{ik} \quad \forall k \neq j$$
+
+## Conditional Choice Probability
+
+Given the deterministic components $\{\delta, \mu_i\}$, the choice probability is:
+
+$$P_{ij}|\mu_i = \Pr(\varepsilon_{ij} > \varepsilon_{ik} + \delta_k + \mu_{ik} - \delta_j - \mu_{ij}, \quad \forall k \neq j)$$
+
+Let's define $V_{ij} = \delta_j + \mu_{ij}$ as the deterministic part of utility. This allows us to rewrite:
+
+$$P_{ij}|\mu_i = \Pr(\varepsilon_{ik} < \varepsilon_{ij} + V_{ij} - V_{ik}, \quad \forall k \neq j)$$
+
+## Probability Conditional on $\varepsilon_{ij}$
+
+Given a specific realization $\varepsilon_{ij} = \varepsilon$, the probability that product $j$ is chosen is the probability that all other alternatives have lower utility:
+
+$$\Pr(j \text{ chosen}|\varepsilon_{ij} = \varepsilon) = \prod_{k \neq j} F(\varepsilon + V_{ij} - V_{ik})$$
+
+Substituting the Type I extreme value CDF:
+
+$$= \prod_{k \neq j} \exp(-\exp(-(\varepsilon + V_{ij} - V_{ik})))$$
+
+Using properties of exponentials:
+
+$$= \prod_{k \neq j} \exp(-\exp(-\varepsilon)\exp(V_{ik} - V_{ij}))$$
+
+$$= \exp\left(-\exp(-\varepsilon)\sum_{k \neq j}\exp(V_{ik} - V_{ij})\right)$$
+
+# Integration Over the Idiosyncratic Shock
+
+## Setting Up the Integral
+
+To obtain the unconditional (on $\varepsilon_{ij}$) choice probability, we integrate over the distribution of $\varepsilon_{ij}$:
+
+$$P_{ij}|\mu_i = \int_{-\infty}^{\infty} \exp\left(-\exp(-\varepsilon)\sum_{k \neq j}\exp(V_{ik} - V_{ij})\right) \cdot \exp(-\varepsilon - \exp(-\varepsilon)) \, d\varepsilon$$
+
+## Change of Variables
+
+We employ the substitution $t = \exp(-\varepsilon)$, which gives us:
+
+- $dt = -\exp(-\varepsilon)d\varepsilon = -t \cdot d\varepsilon$
+- Therefore: $d\varepsilon = -\frac{dt}{t}$
+- When $\varepsilon \to -\infty$: $t \to \infty$
+- When $\varepsilon \to \infty$: $t \to 0$
+
+## Transformed Integral
+
+The integral becomes:
+
+$$P_{ij}|\mu_i = \int_{\infty}^{0} \exp\left(-t\sum_{k \neq j}\exp(V_{ik} - V_{ij})\right) \cdot \exp(-t) \cdot (-dt)$$
+
+Reversing the limits of integration:
+
+$$= \int_{0}^{\infty} \exp\left(-t\left[1 + \sum_{k \neq j}\exp(V_{ik} - V_{ij})\right]\right) \, dt$$
+
+## Simplification
+
+Let $A = 1 + \sum_{k \neq j}\exp(V_{ik} - V_{ij}) = \sum_{k=1}^{J}\exp(V_{ik} - V_{ij})$ (where the sum now includes all products including $j$)
+
+Then:
+
+$$P_{ij}|\mu_i = \int_{0}^{\infty} \exp(-tA) \, dt = \left[-\frac{1}{A}\exp(-tA)\right]_{0}^{\infty} = \frac{1}{A}$$
+
+$$= \frac{1}{\sum_{k}\exp(V_{ik} - V_{ij})}$$
+
+# The Final Logit Form
+
+## Conditional Logit Probability
+
+Multiplying both numerator and denominator by $\exp(V_{ij})$:
+
+$$P_{ij}|\mu_i = \frac{\exp(V_{ij})}{\sum_{k}\exp(V_{ik})} = \frac{\exp(\delta_j + \mu_{ij})}{\sum_{k}\exp(\delta_k + \mu_{ik})}$$
+
+This is the **multinomial logit formula conditional on the random coefficients** $\mu_i$.
+
+## Unconditional Choice Probability in BLP
+
+The unconditional choice probability requires one additional integration over the distribution of random coefficients:
+
+$$P_{ij} = \int \frac{\exp(\delta_j + \mu_{ij})}{\sum_{k}\exp(\delta_k + \mu_{ik})} \, dF_{\mu}(\mu_i)$$
+
+This final integral typically lacks a closed-form solution and requires simulation methods (e.g., Monte Carlo integration), but the Type I extreme value assumption has already provided the crucial computational advantage by yielding the tractable logit kernel.
+
+# Economic Implications
+
+## Why This Matters
+
+1. **Computational Feasibility**: The closed-form logit probability enables practical estimation of models with many products and rich heterogeneity patterns.
+
+2. **Flexible Substitution Patterns**: Unlike simple logit, the BLP model overcomes the IIA (Independence of Irrelevant Alternatives) property through random coefficients while maintaining computational tractability through the Type I extreme value assumption.
+
+3. **Smooth Market Shares**: The continuous and differentiable nature of the logit probabilities ensures:
+   - Well-behaved optimization problems
+   - Existence of equilibria in pricing games
+   - Applicability of the BLP contraction mapping
+
+4. **Identification**: The specific variance of the Type I extreme value distribution ($\pi^2/6$) provides a natural scale normalization for utility.
+
+## Alternative Distributions
+
+While other distributions (e.g., normal) could be used for $\varepsilon_{ij}$, they would require:
+
+- Numerical integration for each choice probability
+- Significantly increased computational burden
+- Potential numerical instability in estimation
+
+The Type I extreme value distribution represents an optimal balance between model flexibility and computational practicality, which explains its ubiquity in discrete choice modeling beyond just BLP.
+
+# Conclusion
+
+The derivation shows how the specific mathematical properties of the Type I extreme value distribution—particularly the form of its CDF—lead directly to the multinomial logit formula. This elegant result, combined with the random coefficients that capture consumer heterogeneity, makes BLP a powerful yet tractable model for demand estimation in differentiated product markets.
+
+# References
+
+Berry, S., Levinsohn, J., & Pakes, A. (1995). Automobile Prices in Market Equilibrium. *Econometrica*, 63(4), 841-890.
+
+McFadden, D. (1974). Conditional Logit Analysis of Qualitative Choice Behavior. In P. Zarembka (Ed.), *Frontiers in Econometrics* (pp. 105-142). Academic Press.
+
+Train, K. E. (2009). *Discrete Choice Methods with Simulation* (2nd ed.). Cambridge University Press.
